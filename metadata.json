@@ -1,5 +1,5 @@
 {
-  "name": "RAPORT",
-  "description": "Inteligentny monitor mediów dla rynku sosów i przypraw w Polsce. Analizuje newsy, szacuje zasięgi i ekwiwalent reklamowy dla czołowych marek.",
+  "name": "Przegląd Mediów",
+  "description": "Inteligentny monitor newsów dla marek sosów (Dawtona, Develey, Heinz, Knorr) z estymacją zasięgów i AVE.",
   "requestFramePermissions": []
 }

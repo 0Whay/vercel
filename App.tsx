@@ -1,221 +1,174 @@
 import React, { useState } from 'react';
-import { generateMarketReport } from './services/geminiService';
-import { NewsItem, BrandStat, TARGET_BRANDS } from './types';
+import { Button } from './components/Button';
 import { NewsCard } from './components/NewsCard';
-import { StatsChart } from './components/StatsChart';
-import { Loader2, Search, TrendingUp, AlertCircle, FileText, Menu, Filter } from 'lucide-react';
+import { MetricsSummary } from './components/MetricsSummary';
+import { NewsItem, SearchState, CompanyFilter, COMPANIES } from './types';
+import { fetchNewsReport } from './services/geminiService';
 
 const App: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<NewsItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('all');
+  const [state, setState] = useState<SearchState>({
+    isLoading: false,
+    error: null,
+    data: [],
+    lastUpdated: null
+  });
+
+  const [activeFilter, setActiveFilter] = useState<CompanyFilter>('Wszystkie');
 
   const handleGenerateReport = async () => {
-    setLoading(true);
-    setError(null);
-    setData(null);
-    setActiveTab('all');
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
-      const news = await generateMarketReport();
-      setData(news);
+      const news = await fetchNewsReport();
+      setState({
+        isLoading: false,
+        error: null,
+        data: news,
+        lastUpdated: new Date()
+      });
     } catch (err: any) {
-      setError(err.message || "Wystąpił błąd podczas generowania raportu. Sprawdź klucz API lub spróbuj ponownie.");
-    } finally {
-      setLoading(false);
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: err.message || "Wystąpił nieznany błąd." 
+      }));
     }
   };
 
-  // Process data for views
-  const topNews = data?.filter(item => item.isTopNews) || [];
-  
-  // Calculate stats
-  const stats: BrandStat[] = TARGET_BRANDS.map(brand => {
-    const brandNews = data?.filter(n => n.brand === brand) || [];
-    return {
-      name: brand,
-      newsCount: brandNews.length,
-      totalReach: brandNews.reduce((sum, item) => sum + item.estimatedReach, 0),
-      totalAdValue: brandNews.reduce((sum, item) => sum + item.adEquivalentValue, 0),
-    };
-  });
+  // Logic to separate Top 5 and the rest
+  const sortedData = [...state.data].sort((a, b) => b.metrics.reach - a.metrics.reach);
+  const topNews = sortedData.slice(0, 5);
+  const otherNews = sortedData.slice(5);
 
-  const displayedNews = activeTab === 'all' 
-    ? (data || []).sort((a, b) => b.brand.localeCompare(a.brand)) // Default sort
-    : (data || []).filter(item => item.brand === activeTab);
+  const filteredOtherNews = activeFilter === 'Wszystkie' 
+    ? otherNews 
+    : otherNews.filter(item => item.company === activeFilter);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center">
-              <TrendingUp className="text-white w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-bold text-slate-800">RAPORT</h1>
+    <div className="min-h-screen pb-20">
+      {/* Hero Section */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-30 bg-opacity-90 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+             </div>
+             <div>
+               <h1 className="text-xl font-bold text-gray-900 tracking-tight">Przegląd Mediów</h1>
+               <p className="text-xs text-gray-500 font-medium">Monitor mediów & kalkulator zasięgu</p>
+             </div>
           </div>
-          <button 
+          
+          <Button 
             onClick={handleGenerateReport} 
-            disabled={loading}
-            className={`
-              flex items-center gap-2 px-4 py-2 rounded-full font-medium transition-all
-              ${loading 
-                ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                : 'bg-rose-600 hover:bg-rose-700 text-white shadow-md hover:shadow-lg active:scale-95'}
-            `}
+            isLoading={state.isLoading}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-            {loading ? 'Analizowanie...' : 'Generuj Raport'}
-          </button>
+            {state.isLoading ? 'Generowanie...' : 'Generuj Raport'}
+          </Button>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
-        {/* Intro / Empty State */}
-        {!data && !loading && !error && (
-          <div className="text-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm border-dashed">
-            <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-rose-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">Gotowy do analizy rynku?</h2>
-            <p className="text-slate-500 max-w-md mx-auto mb-8">
-              System pobierze najnowsze informacje o markach: {TARGET_BRANDS.slice(0, 4).join(', ')} i innych z ostatniego miesiąca. 
-              Kliknij przycisk powyżej, aby rozpocząć.
-            </p>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="space-y-8 animate-pulse">
-            <div className="h-64 bg-slate-200 rounded-xl w-full"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3, 4, 5, 6].map(i => (
-                <div key={i} className="h-40 bg-slate-200 rounded-lg"></div>
-              ))}
-            </div>
+        {/* Empty State / Welcome */}
+        {state.data.length === 0 && !state.isLoading && !state.error && (
+          <div className="text-center py-20">
+             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 text-gray-300">
+                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+             </div>
+             <h2 className="text-3xl font-bold text-gray-800 mb-4">Witaj w centrum monitoringu!</h2>
+             <p className="text-gray-500 max-w-lg mx-auto mb-8 text-lg">
+               Kliknij przycisk "Generuj Raport", aby przeszukać internet w poszukiwaniu najnowszych newsów o firmach Dawtona, Develey, Heinz, Knorr, Winiary i Madero z ostatnich 30 dni.
+             </p>
           </div>
         )}
 
         {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 flex items-start gap-4">
-            <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-800">Błąd analizy</h3>
-              <p className="text-red-700">{error}</p>
-              <button 
-                onClick={handleGenerateReport}
-                className="mt-4 text-sm font-medium text-red-700 underline hover:text-red-900"
-              >
-                Spróbuj ponownie
-              </button>
+        {state.error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl mb-8 flex items-center gap-3">
+             <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+             <p>{state.error}</p>
+          </div>
+        )}
+
+        {/* Loading Skeleton (Simple) */}
+        {state.isLoading && state.data.length === 0 && (
+          <div className="space-y-6 animate-pulse">
+            <div className="h-32 bg-gray-200 rounded-2xl"></div>
+            <div className="grid md:grid-cols-2 gap-6">
+               <div className="h-64 bg-gray-200 rounded-2xl"></div>
+               <div className="h-64 bg-gray-200 rounded-2xl"></div>
             </div>
           </div>
         )}
 
-        {/* Dashboard Content */}
-        {data && !loading && (
-          <div className="space-y-8">
+        {/* Results View */}
+        {state.data.length > 0 && (
+          <div className="space-y-12">
             
-            {/* Top Stats Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* Top 5 News */}
-              <div className="lg:col-span-2">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-yellow-500 rounded-full"></div>
-                  <h2 className="text-xl font-bold text-slate-800">Top 5 Kluczowych Wydarzeń</h2>
-                </div>
-                <div className="space-y-3">
-                  {topNews.length > 0 ? (
-                    topNews.map((item) => (
-                      <NewsCard key={item.id} item={item} compact={false} />
-                    ))
-                  ) : (
-                    <p className="text-slate-500 italic">Brak wyraźnych wyróżnień w tym okresie.</p>
-                  )}
-                </div>
-              </div>
+            {/* Metrics Summary */}
+            <section>
+              <MetricsSummary data={state.data} />
+            </section>
 
-              {/* Chart */}
-              <div className="lg:col-span-1">
-                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-6 bg-blue-500 rounded-full"></div>
-                  <h2 className="text-xl font-bold text-slate-800">Statystyki</h2>
-                </div>
-                <StatsChart stats={stats} />
-                
-                {/* Mini Stat Cards */}
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
-                    <p className="text-xs text-slate-500 uppercase font-bold">Łączna liczba newsów</p>
-                    <p className="text-2xl font-bold text-slate-800">{data.length}</p>
-                  </div>
-                  <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-100">
-                    <p className="text-xs text-slate-500 uppercase font-bold">Lider Zasięgu</p>
-                    <p className="text-lg font-bold text-slate-800 truncate" title={stats.sort((a,b) => b.totalReach - a.totalReach)[0].name}>
-                       {stats.sort((a,b) => b.totalReach - a.totalReach)[0].name}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Brand Filter Tabs */}
-            <div className="sticky top-16 z-40 bg-slate-50/95 backdrop-blur-sm py-4 border-b border-slate-200">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                <Filter className="w-5 h-5 text-slate-400 mr-2 flex-shrink-0" />
-                <button
-                  onClick={() => setActiveTab('all')}
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                    activeTab === 'all' 
-                      ? 'bg-slate-900 text-white' 
-                      : 'bg-white text-slate-600 border border-slate-200 hover:border-rose-300'
-                  }`}
-                >
-                  Wszystkie marki
-                </button>
-                {TARGET_BRANDS.map(brand => (
-                  <button
-                    key={brand}
-                    onClick={() => setActiveTab(brand)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                      activeTab === brand 
-                        ? 'bg-rose-600 text-white' 
-                        : 'bg-white text-slate-600 border border-slate-200 hover:border-rose-300'
-                    }`}
-                  >
-                    {brand} <span className="ml-1 opacity-75 text-xs">({stats.find(s => s.name === brand)?.newsCount || 0})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Main News Feed */}
-            <div>
+            {/* Top 5 Section */}
+            <section>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-slate-800">
-                  {activeTab === 'all' ? 'Pełny Przegląd Mediów' : `Wiadomości: ${activeTab}`}
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <span className="text-orange-500 text-3xl">★</span> Top 5 Najważniejszych Newsów
                 </h2>
-                <span className="text-sm text-slate-500">Ostatnie 30 dni</span>
+                <span className="text-sm font-medium text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-200 shadow-sm">
+                  Sortowane wg zasięgu
+                </span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {displayedNews.length > 0 ? (
-                  displayedNews.map((item) => (
-                    <NewsCard key={item.id} item={item} compact />
-                  ))
-                ) : (
-                  <div className="col-span-full py-12 text-center bg-white rounded-xl border border-slate-200">
-                     <p className="text-slate-500">Brak newsów dla wybranej marki w tym okresie.</p>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {/* Make the first item take full width on large screens if we want layout variation, keeping grid for now */}
+                 {topNews.map((item, idx) => (
+                   <div key={item.id} className={idx === 0 ? "md:col-span-2 lg:col-span-2" : ""}>
+                      <NewsCard item={item} highlight={true} />
+                   </div>
+                 ))}
               </div>
-            </div>
+            </section>
 
+            {/* Other News Section */}
+            <section>
+               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                  <h2 className="text-xl font-bold text-gray-900">Pozostałe wiadomości ({filteredOtherNews.length})</h2>
+                  
+                  {/* Filter Tabs */}
+                  <div className="flex flex-wrap gap-2">
+                    {COMPANIES.map(company => (
+                      <button
+                        key={company}
+                        onClick={() => setActiveFilter(company)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                          ${activeFilter === company 
+                            ? 'bg-gray-900 text-white shadow-md' 
+                            : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                          }
+                        `}
+                      >
+                        {company}
+                      </button>
+                    ))}
+                  </div>
+               </div>
+
+               {filteredOtherNews.length > 0 ? (
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredOtherNews.map(item => (
+                      <NewsCard key={item.id} item={item} />
+                    ))}
+                 </div>
+               ) : (
+                 <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-300">
+                    <p className="text-gray-500">Brak newsów dla wybranej kategorii.</p>
+                 </div>
+               )}
+            </section>
           </div>
         )}
       </main>

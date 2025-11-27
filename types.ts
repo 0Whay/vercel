@@ -1,36 +1,23 @@
 export interface NewsItem {
   id: string;
-  brand: string;
   title: string;
-  date: string;
-  url: string;
   summary: string;
-  estimatedReach: number; // Szacowany zasięg
-  adEquivalentValue: number; // Ekwiwalent reklamowy (PLN)
-  isTopNews: boolean; // Czy należy do top 5
+  url: string;
+  source: string;
+  company: 'Dawtona' | 'Develey' | 'Heinz' | 'Knorr' | 'Winiary' | 'Madero' | 'Inne';
+  date: string;
+  metrics: {
+    reach: number;
+    ave: number; // Advertising Value Equivalent in PLN
+  };
 }
 
-export interface BrandStat {
-  name: string;
-  newsCount: number;
-  totalReach: number;
-  totalAdValue: number;
+export interface SearchState {
+  isLoading: boolean;
+  error: string | null;
+  data: NewsItem[];
+  lastUpdated: Date | null;
 }
 
-export interface ReportData {
-  generatedAt: string;
-  news: NewsItem[];
-  stats: BrandStat[];
-}
-
-export const TARGET_BRANDS = [
-  "Develey",
-  "Heinz",
-  "Hellmann's",
-  "Kotlin",
-  "Pudliszki",
-  "Roleski",
-  "Tarsmak",
-  "Winiary",
-  "Łowicz"
-];
+export const COMPANIES = ['Wszystkie', 'Dawtona', 'Develey', 'Heinz', 'Knorr', 'Winiary', 'Madero'] as const;
+export type CompanyFilter = typeof COMPANIES[number];
